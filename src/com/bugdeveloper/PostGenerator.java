@@ -13,29 +13,40 @@ public class PostGenerator {
     private HashMap<String, MarkovChain> chain;
     private BufferedReader br;
     private Random random;
-    private int enclosure;
-    private int wordNumber;
+    private int lowerEnclosure, upperEnclosure, lowerWordNumber, upperWordNumber, currentWordNumber, currentEnclosure;
+    private String quotes, pictures;
 
-    public PostGenerator(File input, int enclosure, int wordNumber) throws IOException {
-        this.enclosure = enclosure;
-        this.wordNumber = wordNumber;
+    public PostGenerator(String quotes, String pictures, int lowerEnclosure, int upperEnclosure, int lowerWordNumber, int upperWordNumber) throws IOException {
+        this.lowerEnclosure = lowerEnclosure;
+        this.upperEnclosure = upperEnclosure;
+        this.lowerWordNumber = lowerWordNumber;
+        this.upperWordNumber = upperWordNumber;
+        this.quotes = quotes;
+        this.pictures = pictures;
+
+        random = new Random();
+
+        currentWordNumber = random.nextInt(upperWordNumber - lowerWordNumber) + lowerWordNumber;
+        currentEnclosure = random.nextInt(upperEnclosure - lowerEnclosure) + lowerEnclosure;
+
+        if (currentEnclosure > currentWordNumber)
+            currentEnclosure = random.nextInt(currentWordNumber + 1 - lowerEnclosure) + lowerEnclosure + 1;
 
         chain = new HashMap<>();
-        br = new BufferedReader(new FileReader(input));
-        random = new Random();
+        br = new BufferedReader(new FileReader(new File(quotes)));
 
         initializeChain();
         System.out.println("Initialization done!");
     }
 
-    public String generateSentence() {
+    private String generateSentence() {
 
         String sentence = "";
         HashMap<String, MarkovChain> current = chain;
 
         int wordNumber = 0;
 
-        while(wordNumber < this.wordNumber) {
+        while(wordNumber < this.currentWordNumber) {
 
             RangeEntry[] wordEntries = getRangeEntries(current);
             String word = chooseWord(wordEntries);
@@ -52,6 +63,53 @@ public class PostGenerator {
         sentence = stringOutMakeover(sentence);
 
         return sentence;
+
+    }
+
+    private String generatePicture() throws IOException {
+        int number = random.nextInt(countLines(pictures));
+        int count = 0;
+        String line;
+
+        BufferedReader bufferedReader = new BufferedReader(new FileReader(pictures));
+
+        while((line = bufferedReader.readLine()) != null) {
+            count++;
+            if (count == number)
+                return line;
+        }
+        return "";
+    }
+
+    private int countLines(String filename) throws IOException {
+        InputStream is = new BufferedInputStream(new FileInputStream(filename));
+        try {
+            byte[] c = new byte[1024];
+            int count = 0;
+            int readChars = 0;
+            boolean empty = true;
+            while ((readChars = is.read(c)) != -1) {
+                empty = false;
+                for (int i = 0; i < readChars; ++i) {
+                    if (c[i] == '\n') {
+                        ++count;
+                    }
+                }
+            }
+            return (count == 0 && !empty) ? 1 : count;
+        } finally {
+            is.close();
+        }
+    }
+
+    public String[] generatePost() throws IOException {
+
+        String[] post = new String[2];
+
+        post[0] = generateSentence();
+        post[1] = generatePicture();
+
+        return post;
     }
 
     private String chooseWord(RangeEntry[] entries) {
@@ -113,13 +171,17 @@ public class PostGenerator {
 
     private String stringOutMakeover(String string) {
 
-        if (string.charAt(0) == ',' || string.charAt(0) == '.' || string.charAt(0) == ':')
+        while (string.charAt(0) == ',' || string.charAt(0) == '.' || string.charAt(0) == ':')
             string = string.substring(2);
 
+        string = string.replaceAll(",,", ",");
         string = string.replaceAll(" , ", ", ");
         string = string.replaceAll(" \\. ", "\\. ");
+        string = string.replaceAll(" \\.", "\\. ");
         string = string.replaceAll(", ,", ",");
         string = string.replaceAll(" : ", ": ");
+        string = string.replaceAll("\\.,", ",");
+        string = string.replaceAll(" - ", "-");
 
         for (int i = 0; i < string.length() - 2; i++) {
             if (string.substring(i, i + 2).equals(". "))
@@ -129,9 +191,14 @@ public class PostGenerator {
         string = Character.toUpperCase(string.charAt(0)) + string.substring(1);
 
         if (string.charAt(string.length() - 1) == ',' || string.charAt(string.length() - 1) == '-' || string.charAt(string.length() - 1) == ':')
+            string = string.substring(0, string.length() - 1) + ".";
+        else
+        if (string.charAt(string.length() - 2) == ',' || string.charAt(string.length() - 2) == '-' || string.charAt(string.length() - 2) == ':')
             string = string.substring(0, string.length() - 2) + ".";
         else
-            string = string.substring(0, string.length() - 1) + ".";
+            string = string + ".";
+
+        string = string.replaceAll(" \\.", ".");
 
         return string;
     }
@@ -155,6 +222,7 @@ public class PostGenerator {
     }
 
     private void initializeChain() throws IOException {
+
         String line;
 
         while ((line = br.readLine()) != null) {
@@ -172,12 +240,12 @@ public class PostGenerator {
                 if (!current.containsKey(words[i]))
                     current.put(words[i], new MarkovChain());
 
-                    current.get(words[i]).increaseChance();
+                current.get(words[i]).increaseChance();
 
                 current = current.get(words[i]).getChain();
                 enclosure++;
 
-                if (enclosure > this.enclosure)
+                if (enclosure > currentEnclosure)
                     current = chain;
             }
         }
