@@ -1,13 +1,12 @@
 package com.bugdeveloper;
 
 import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Created by BugDeveloper on 20.01.2017.
  */
+
 public class PostGenerator {
 
     private HashMap<String, MarkovChain> chain;
@@ -15,6 +14,10 @@ public class PostGenerator {
     private Random random;
     private int lowerEnclosure, upperEnclosure, lowerWordNumber, upperWordNumber, currentWordNumber, currentEnclosure;
     private String quotes, pictures;
+
+    private static final List<String> charsNeedsSpaces = Arrays.asList(",", "\\.", ":");
+    private static final List<String> charsNotInEnd = Arrays.asList(",", "-", ":", " ");
+    private static final List<String> allInterestingChars = Arrays.asList(":", "-", ",", ".");
 
     public PostGenerator(String quotes, String pictures, int lowerEnclosure, int upperEnclosure, int lowerWordNumber, int upperWordNumber) throws IOException {
         this.lowerEnclosure = lowerEnclosure;
@@ -39,31 +42,37 @@ public class PostGenerator {
         System.out.println("Initialization done!");
     }
 
+    private String generateSentence(int wordNumber, String sentence, HashMap<String, MarkovChain> current) {
+
+        RangeEntry[] wordEntries = getRangeEntries(current);
+        String word = chooseWord(wordEntries);
+
+        sentence += word + " ";
+
+        wordNumber++;
+
+        current = current.get(word).getChain();
+
+        if (current.size() == 0)
+            current = chain;
+
+        if (wordNumber > currentWordNumber && word.equals(".")) {
+            return sentence;
+        }
+
+        return generateSentence(wordNumber, sentence, current);
+
+    }
+
     private String generateSentence() {
 
-        String sentence = "";
         HashMap<String, MarkovChain> current = chain;
 
-        int wordNumber = 0;
-
-        while(wordNumber < this.currentWordNumber) {
-
-            RangeEntry[] wordEntries = getRangeEntries(current);
-            String word = chooseWord(wordEntries);
-
-            sentence += word + " ";
-            wordNumber++;
-
-            current = current.get(word).getChain();
-
-            if (current.size() == 0)
-                current = chain;
-        }
+        String sentence = generateSentence(0, "", current);
 
         sentence = stringOutMakeover(sentence);
 
         return sentence;
-
     }
 
     private String generatePicture() throws IOException {
@@ -86,7 +95,7 @@ public class PostGenerator {
         try {
             byte[] c = new byte[1024];
             int count = 0;
-            int readChars = 0;
+            int readChars;
             boolean empty = true;
             while ((readChars = is.read(c)) != -1) {
                 empty = false;
@@ -169,19 +178,35 @@ public class PostGenerator {
         return sum;
     }
 
+    private String[] removeElement(String[] array, int index) {
+        List<String> list = new ArrayList<>(Arrays.asList(array));
+        list.remove(index);
+        return (String[]) list.toArray();
+    }
+
     private String stringOutMakeover(String string) {
 
-        while (string.charAt(0) == ',' || string.charAt(0) == '.' || string.charAt(0) == ':')
+        while (charsNeedsSpaces.contains(Character.toString(string.charAt(0))))
             string = string.substring(2);
 
-        string = string.replaceAll(",,", ",");
-        string = string.replaceAll(" , ", ", ");
-        string = string.replaceAll(" \\. ", "\\. ");
-        string = string.replaceAll(" \\.", "\\. ");
-        string = string.replaceAll(", ,", ",");
-        string = string.replaceAll(" : ", ": ");
-        string = string.replaceAll("\\.,", ",");
         string = string.replaceAll(" - ", "-");
+
+        for (int i = 0; i < charsNeedsSpaces.size(); i++) {
+            string = string.replaceAll(" " + charsNeedsSpaces.get(i), charsNeedsSpaces.get(i));
+            string = string.replaceAll(charsNeedsSpaces.get(i) + ".", charsNeedsSpaces.get(i) + " ");
+        }
+
+        for (int i = 0; i < allInterestingChars.size(); i++) {
+            for (int j = 0; j < allInterestingChars.size(); j++) {
+                string = string.replaceAll("(?=.*Pattern.quote(neighbourPriority.get(i)))" +
+                        "(?=.*Pattern.quote(neighbourPriority.get(j)))", allInterestingChars.get(i));
+
+            }
+            string = string.replaceAll("(?=.*Pattern.quote(neighbourPriority.get(i))){2,}" +
+                    "(?=.* )", allInterestingChars.get(i));
+        }
+
+        string = string.replaceAll(" " + "{2,}", " ");
 
         for (int i = 0; i < string.length() - 2; i++) {
             if (string.substring(i, i + 2).equals(". "))
@@ -190,15 +215,12 @@ public class PostGenerator {
 
         string = Character.toUpperCase(string.charAt(0)) + string.substring(1);
 
-        if (string.charAt(string.length() - 1) == ',' || string.charAt(string.length() - 1) == '-' || string.charAt(string.length() - 1) == ':')
-            string = string.substring(0, string.length() - 1) + ".";
-        else
-        if (string.charAt(string.length() - 2) == ',' || string.charAt(string.length() - 2) == '-' || string.charAt(string.length() - 2) == ':')
-            string = string.substring(0, string.length() - 2) + ".";
-        else
+        while (charsNotInEnd.contains(Character.toString(string.charAt(string.length() - 1)))) {
+            string = string.substring(0, string.length() - 1);
+        }
             string = string + ".";
 
-        string = string.replaceAll(" \\.", ".");
+        string = string.replaceAll("-", " - ");
 
         return string;
     }
@@ -206,17 +228,10 @@ public class PostGenerator {
     private String stringInMakeover(String string) {
 
         //crouch
-
         string = string.toLowerCase();
         string = string.replaceAll("\\p{Pd}", "-");
         string = string.replaceAll("[^A-Za-zА-Яа-я0-9,ё.:\\- ]", "");
-        string = string.replaceAll("br", "");
-
-        string = string.replaceAll("-"," - ");
-        string = string.replaceAll(":"," : ");
-        string = string.replaceAll(",", " , ");
-        string = string.replaceAll("  ", " ");
-        string = string.replace("\\.", " . ");
+        string = string.replaceAll("br", " ");
 
         return string;
     }
@@ -231,6 +246,10 @@ public class PostGenerator {
 
             HashMap<String, MarkovChain> current = chain;
 
+            for (String character : charsNeedsSpaces) {
+                line = line.replaceAll(character, " " + character + " ");
+            }
+            
             String[] words = line.split(" ");
 
             int enclosure = 0;
