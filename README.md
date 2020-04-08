@@ -10,7 +10,7 @@ int upperEnclosure = 30;
 int lowerWordNumber = 20;
 int upperWordNumber = 50;
 
-PostGenerator pg = new PostGenerator(quotes, pictures", lowerEnclosure, upperEnclosure, lowerWordNumber, upperWordNumber);
+PostGenerator pg = new PostGenerator(quotes, pictures, lowerEnclosure, upperEnclosure, lowerWordNumber, upperWordNumber);
 
 String[] post = pg.generatePost();
 
